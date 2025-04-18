@@ -1,0 +1,70 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reservation-service
+  namespace: meeting-room-system
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: reservation-service
+  template:
+    metadata:
+      labels:
+        app: reservation-service
+    spec:
+      containers:
+      - name: reservation-service
+        image: reservation-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5002
+        env:
+        - name: DATABASE_URL
+          value: postgresql://postgres:postgres@postgres:5432/reservation_db
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: JWT_SECRET_KEY
+        - name: KAFKA_BROKER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: KAFKA_BROKER_URL
+        - name: KAFKA_CONSUMER_GROUP
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: KAFKA_CONSUMER_GROUP
+        - name: DEBUG
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: DEBUG
+        - name: PORT
+          value: "5002"
+        readinessProbe:
+          httpGet:
+            path: /reservations/
+            port: 5002
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /reservations/
+            port: 5002
+          initialDelaySeconds: 30
+          periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reservation-service
+  namespace: meeting-room-system
+spec:
+  selector:
+    app: reservation-service
+  ports:
+  - port: 5002
+    targetPort: 5002

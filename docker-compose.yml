@@ -1,0 +1,116 @@
+version: '3'
+
+services:
+  # PostgreSQL Databases
+  postgres:
+    image: postgres:12
+    environment:
+      POSTGRES_PASSWORD: postgres
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"  # Changed from 5432:5432 to avoid conflict with local PostgreSQL
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Kafka services
+  zookeeper:
+    image: wurstmeister/zookeeper
+    ports:
+      - "2182:2181"  # Changed from 2181:2181 to avoid port conflict
+
+  kafka:
+    image: wurstmeister/kafka
+    ports:
+      - "9093:9092"  # Changed from 9092:9092 to avoid potential conflicts
+    environment:
+      KAFKA_ADVERTISED_LISTENERS: INSIDE://kafka:9093,OUTSIDE://localhost:9093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INSIDE:PLAINTEXT,OUTSIDE:PLAINTEXT
+      KAFKA_LISTENERS: INSIDE://0.0.0.0:9093,OUTSIDE://0.0.0.0:9092
+      KAFKA_INTER_BROKER_LISTENER_NAME: INSIDE
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      - zookeeper
+
+  # Microservices
+  user-service:
+    build: ./user-service
+    ports:
+      - "5000:5000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5433/user_db
+      - JWT_SECRET_KEY=your-secret-key-here
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
+      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
+      - ADMIN_EMAILS=${ADMIN_EMAILS}
+      - DEBUG=True
+      - PORT=5000
+    depends_on:
+      - postgres
+    restart: on-failure
+    command: >
+      sh -c "
+        sleep 10 &&
+        python app.py
+      "
+
+  room-service:
+    build: ./room-service
+    ports:
+      - "5001:5001"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5433/room_db
+      - JWT_SECRET_KEY=your-secret-key-here
+      - KAFKA_BROKER_URL=kafka:9093
+      - DEBUG=True
+      - PORT=5001
+    depends_on:
+      - postgres
+      - kafka
+    restart: on-failure
+    command: >
+      sh -c "
+        sleep 15 &&
+        python app.py
+      "
+
+  reservation-service:
+    build: ./reservation-service
+    ports:
+      - "5002:5002"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5433/reservation_db
+      - JWT_SECRET_KEY=your-secret-key-here
+      - KAFKA_BROKER_URL=kafka:9093
+      - KAFKA_CONSUMER_GROUP=reservation-service
+      - DEBUG=True
+      - PORT=5002
+    depends_on:
+      - postgres
+      - kafka
+    restart: on-failure
+    command: >
+      sh -c "
+        sleep 20 &&
+        python app.py
+      "
+
+  # NGINX Load Balancer
+  nginx:
+    image: nginx:latest
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - user-service
+      - room-service
+      - reservation-service
+
+volumes:
+  pg_data:

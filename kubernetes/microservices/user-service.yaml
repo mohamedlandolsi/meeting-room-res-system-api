@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: meeting-room-system
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+      - name: user-service
+        image: user-service:latest
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5000
+        env:
+        - name: DATABASE_URL
+          value: postgresql://postgres:postgres@postgres:5432/user_db
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: JWT_SECRET_KEY
+        - name: DEBUG
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: DEBUG
+        - name: PORT
+          value: "5000"
+        - name: GOOGLE_CLIENT_ID
+          value: "374852139175-3mku2c01depioeq5pgp170up5f0sllg3.apps.googleusercontent.com"
+        - name: GOOGLE_CLIENT_SECRET
+          value: "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"
+        - name: ADMIN_EMAILS
+          value: "mohamedlandolsi30@gmail.com"
+        readinessProbe:
+          httpGet:
+            path: /users/me
+            port: 5000
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /users/me
+            port: 5000
+          initialDelaySeconds: 30
+          periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: meeting-room-system
+spec:
+  selector:
+    app: user-service
+  ports:
+  - port: 5000
+    targetPort: 5000

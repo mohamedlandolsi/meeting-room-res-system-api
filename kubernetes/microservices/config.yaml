@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+  namespace: meeting-room-system
+data:
+  JWT_SECRET_KEY: "your-secret-key-here"
+  DEBUG: "False"
+  KAFKA_BROKER_URL: "kafka:9093"
+  KAFKA_CONSUMER_GROUP: "reservation-service"
