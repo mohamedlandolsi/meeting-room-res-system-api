@@ -5,10 +5,15 @@ from routes import reservations_bp, availability_bp
 import os
 import threading
 import json
+import time
 from kafka import KafkaConsumer
+from kafka.errors import NoBrokersAvailable
 
 def create_app():
     app = Flask(__name__)
+    
+    # Add this line to disable strict slashes globally
+    app.url_map.strict_slashes = False
     
     # Load configuration
     app.config.from_object('config.Config')
@@ -53,37 +58,55 @@ def create_app():
     return app
 
 def start_kafka_consumer(app):
-    """Start Kafka consumer in a separate thread"""
+    """Start Kafka consumer in a separate thread with retry mechanism"""
     def consume_room_events():
         with app.app_context():
-            try:
-                consumer = KafkaConsumer(
-                    'room_events',
-                    bootstrap_servers=app.config['KAFKA_BROKER_URL'],
-                    group_id=app.config['KAFKA_CONSUMER_GROUP'],
-                    value_deserializer=lambda m: json.loads(m.decode('utf-8')),
-                    auto_offset_reset='earliest',
-                    enable_auto_commit=True
-                )
-                
-                print("Kafka consumer started. Listening for room events...")
-                
-                for message in consumer:
-                    event = message.value
-                    event_type = event.get('event_type')
+            retry_count = 0
+            max_retries = 5
+            retry_delay = 5  # seconds
+
+            while True:
+                try:
+                    consumer = KafkaConsumer(
+                        'room_events',
+                        bootstrap_servers=app.config['KAFKA_BROKER_URL'],
+                        group_id=app.config['KAFKA_CONSUMER_GROUP'],
+                        value_deserializer=lambda m: json.loads(m.decode('utf-8')),
+                        auto_offset_reset='earliest',
+                        enable_auto_commit=True
+                    )
                     
-                    if event_type == 'room_deleted':
-                        room_id = event.get('room_id')
-                        if room_id:
-                            # Delete all reservations associated with the deleted room
-                            reservations = Reservation.query.filter_by(room_id=room_id).all()
-                            if reservations:
-                                print(f"Deleting {len(reservations)} reservations for room_id {room_id}")
-                                for reservation in reservations:
-                                    db.session.delete(reservation)
-                                db.session.commit()
-            except Exception as e:
-                print(f"Error in Kafka consumer: {str(e)}")
+                    print("Kafka consumer started. Listening for room events...")
+                    retry_count = 0  # Reset retry count on successful connection
+                    
+                    for message in consumer:
+                        event = message.value
+                        event_type = event.get('event_type')
+                        
+                        if event_type == 'room_deleted':
+                            room_id = event.get('room_id')
+                            if room_id:
+                                # Delete all reservations associated with the deleted room
+                                reservations = Reservation.query.filter_by(room_id=room_id).all()
+                                if reservations:
+                                    print(f"Deleting {len(reservations)} reservations for room_id {room_id}")
+                                    for reservation in reservations:
+                                        db.session.delete(reservation)
+                                    db.session.commit()
+                
+                except NoBrokersAvailable:
+                    retry_count += 1
+                    if retry_count > max_retries:
+                        print(f"Error connecting to Kafka after {max_retries} attempts. Will continue trying in the background.")
+                        # Lower the retry frequency after max_retries to reduce log noise
+                        time.sleep(60)  # Wait longer between retries after max_retries
+                    else:
+                        print(f"Kafka broker not available. Retrying in {retry_delay} seconds (attempt {retry_count}/{max_retries})...")
+                        time.sleep(retry_delay)
+                
+                except Exception as e:
+                    print(f"Error in Kafka consumer: {str(e)}")
+                    time.sleep(retry_delay)
     
     # Start consumer in a separate thread
     consumer_thread = threading.Thread(target=consume_room_events, daemon=True)

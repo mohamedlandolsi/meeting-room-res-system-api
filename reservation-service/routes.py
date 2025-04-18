@@ -14,7 +14,7 @@ def admin_or_owner_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
         jwt_data = get_jwt()
-        user_id = jwt_data.get('user_id')
+        user_id = int(get_jwt_identity())  # Convert string to int
         role = jwt_data.get('role')
         
         reservation_id = kwargs.get('reservation_id')
@@ -32,12 +32,19 @@ def admin_or_owner_required(fn):
         return fn(*args, **kwargs)
     return wrapper
 
+# Add a route without trailing slash
+@reservations_bp.route('', methods=['POST'])
+@jwt_required()
+def create_reservation_no_slash():
+    """Create a new reservation - no trailing slash version"""
+    return create_reservation()
+
 @reservations_bp.route('/', methods=['POST'])
 @jwt_required()
 def create_reservation():
     """Create a new reservation"""
     data = request.json
-    user_id = get_jwt_identity().get('user_id')
+    user_id = int(get_jwt_identity())  # Convert string to int
     
     # Validate input
     if not data or 'room_id' not in data or 'start_time' not in data or 'end_time' not in data:
@@ -87,7 +94,7 @@ def create_reservation():
 def get_reservations():
     """Get reservations (filters by user_id for regular employees, all for admin)"""
     jwt_data = get_jwt()
-    user_id = jwt_data.get('user_id')
+    user_id = int(get_jwt_identity())  # Convert string to int
     role = jwt_data.get('role')
     
     # Process query parameters

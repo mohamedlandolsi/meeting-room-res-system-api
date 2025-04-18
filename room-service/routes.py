@@ -1,5 +1,5 @@
 from flask import Blueprint, request, jsonify
-from flask_jwt_extended import jwt_required, get_jwt
+from flask_jwt_extended import jwt_required, get_jwt, get_jwt_identity
 import json
 from kafka import KafkaProducer
 from models import db, Room
@@ -25,6 +25,13 @@ def admin_required(fn):
             return jsonify({"error": "Admin privileges required"}), 403
         return fn(*args, **kwargs)
     return wrapper
+
+@rooms_bp.route('', methods=['POST'])  # Add this route without trailing slash
+@jwt_required()
+@admin_required
+def create_room_no_slash():
+    """Create a new room (Admin only) - no trailing slash version"""
+    return create_room()
 
 @rooms_bp.route('/', methods=['POST'])
 @jwt_required()

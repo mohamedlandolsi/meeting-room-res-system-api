@@ -1,7 +1,8 @@
 from flask import Blueprint, request, jsonify, redirect, url_for, current_app
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, get_jwt
 import requests
 from models import db, User
+from functools import wraps
 
 auth_bp = Blueprint('auth', __name__, url_prefix='/auth')
 user_bp = Blueprint('user', __name__, url_prefix='/users')
@@ -57,26 +58,98 @@ def google_callback():
     # Find user in DB by google_id or create new user
     user = User.query.filter_by(google_id=google_id).first()
     if not user:
-        user = User(google_id=google_id, email=email, name=name, role='Employee')
+        # Check if email should be granted admin role
+        role = 'Admin' if email in current_app.config['ADMIN_EMAILS'] else 'Employee'
+        user = User(google_id=google_id, email=email, name=name, role=role)
         db.session.add(user)
         db.session.commit()
+    # Update existing user's role if their email is in ADMIN_EMAILS
+    elif email in current_app.config['ADMIN_EMAILS'] and user.role != 'Admin':
+        user.role = 'Admin'
+        db.session.commit()
     
-    # Generate JWT access token
+    # Generate JWT access token - use str(user.id) as identity
     access_token = create_access_token(
-        identity={"user_id": user.id, "email": user.email, "role": user.role}
+        identity=str(user.id),
+        additional_claims={"email": user.email, "role": user.role}
     )
     
     return jsonify({"access_token": access_token, "user": user.to_dict()}), 200
+
+# Add admin required decorator
+def admin_required(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        jwt_data = get_jwt()
+        if jwt_data.get('role') != 'Admin':
+            return jsonify({"error": "Admin privileges required"}), 403
+        return fn(*args, **kwargs)
+    return wrapper
 
 @user_bp.route('/me', methods=['GET'])
 @jwt_required()
 def get_user_profile():
     """Get the current user's profile (protected route)"""
-    current_user = get_jwt_identity()
-    user_id = current_user.get('user_id')
-    
+    try:
+        user_id = get_jwt_identity()
+        if user_id is None:
+            return jsonify({"error": "Invalid user identity"}), 401
+        
+        # Ensure user_id is properly handled as a string or int
+        if isinstance(user_id, str) and user_id.isdigit():
+            user_id = int(user_id)
+        elif not isinstance(user_id, int):
+            return jsonify({"error": "Invalid user ID format"}), 400
+        
+        user = User.query.get(user_id)
+        if not user:
+            return jsonify({"error": "User not found"}), 404
+        
+        return jsonify(user.to_dict()), 200
+    except Exception as e:
+        current_app.logger.error(f"Error in get_user_profile: {str(e)}")
+        return jsonify({"error": "Error retrieving user profile", "message": str(e)}), 500
+
+@user_bp.route('/<int:user_id>', methods=['PUT'])
+@jwt_required()
+@admin_required
+def update_user(user_id):
+    """Update a user (Admin only)"""
+    # Check if user exists
     user = User.query.get(user_id)
     if not user:
-        return jsonify({"error": "User not found"}), 404
+        return jsonify({"error": f"User with ID {user_id} not found"}), 404
+    
+    data = request.json
+    if not data:
+        return jsonify({"error": "No update data provided"}), 400
+    
+    # Update fields
+    if 'name' in data:
+        user.name = data['name']
+        
+    if 'role' in data:
+        # Validate role value
+        allowed_roles = ['Employee', 'Admin']
+        if data['role'] not in allowed_roles:
+            return jsonify({"error": f"Invalid role. Must be one of: {', '.join(allowed_roles)}"}), 400
+        user.role = data['role']
+    
+    # Email can only be updated if the new email is not used by another user
+    if 'email' in data and data['email'] != user.email:
+        existing_user = User.query.filter_by(email=data['email']).first()
+        if existing_user:
+            return jsonify({"error": f"Email {data['email']} is already in use"}), 409
+        user.email = data['email']
+    
+    db.session.commit()
     
     return jsonify(user.to_dict()), 200
+
+@user_bp.route('/', methods=['GET'])
+@jwt_required()
+@admin_required
+def get_all_users():
+    """Get a list of all users (Admin only)"""
+    users = User.query.all()
+    return jsonify([user.to_dict() for user in users]), 200

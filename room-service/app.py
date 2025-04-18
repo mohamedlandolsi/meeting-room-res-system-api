@@ -7,6 +7,9 @@ import os
 def create_app():
     app = Flask(__name__)
     
+    # Add this line to disable strict slashes globally
+    app.url_map.strict_slashes = False
+    
     # Load configuration
     app.config.from_object('config.Config')
     

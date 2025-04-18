@@ -14,6 +14,28 @@ def create_app():
     db.init_app(app)
     jwt = JWTManager(app)
     
+    # JWT error handlers
+    @jwt.invalid_token_loader
+    def invalid_token_callback(error):
+        return jsonify({
+            "error": "Invalid token",
+            "message": "The token provided is invalid or malformed."
+        }), 401
+        
+    @jwt.unauthorized_loader
+    def missing_token_callback(error):
+        return jsonify({
+            "error": "Authorization required",
+            "message": "Request does not contain a valid token."
+        }), 401
+        
+    @jwt.expired_token_loader
+    def expired_token_callback(jwt_header, jwt_payload):
+        return jsonify({
+            "error": "Token expired",
+            "message": "The token has expired. Please log in again."
+        }), 401
+    
     # Register blueprints
     app.register_blueprint(auth_bp)
     app.register_blueprint(user_bp)
@@ -38,6 +60,10 @@ def create_app():
     @app.errorhandler(500)
     def server_error(error):
         return jsonify({"error": "Internal Server Error", "message": str(error)}), 500
+    
+    @app.errorhandler(422)
+    def unprocessable_entity(error):
+        return jsonify({"error": "Unprocessable Entity", "message": str(error)}), 422
     
     # Create database tables
     with app.app_context():
