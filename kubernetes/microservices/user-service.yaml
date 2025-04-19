@@ -35,11 +35,11 @@ spec:
         - name: PORT
           value: "5000"
         - name: GOOGLE_CLIENT_ID
-          value: "374852139175-3mku2c01depioeq5pgp170up5f0sllg3.apps.googleusercontent.com"
+          value: "your-google-client-id"
         - name: GOOGLE_CLIENT_SECRET
-          value: "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"
+          value: "your-google-client-secret"
         - name: ADMIN_EMAILS
-          value: "mohamedlandolsi30@gmail.com"
+          value: "admin@example.com"
         readinessProbe:
           httpGet:
             path: /users/me
