@@ -17,6 +17,155 @@ This system is composed of three microservices:
 - **Message Broker**: Apache Kafka
 - **Authentication**: OAuth 2.0 with JWT
 - **Containerization**: Docker
+- **Orchestration**: Kubernetes
+
+## CI/CD Pipeline Automation
+
+This project features a comprehensive CI/CD pipeline using GitHub Actions and Helm for automated testing, building, and deployment to Kubernetes environments.
+
+### GitHub Actions Workflow Overview
+
+Our CI/CD pipeline automates the following stages:
+
+1. **Testing**: Runs automated tests for all microservices
+2. **Building**: Builds Docker images for each microservice
+3. **Publishing**: Pushes images to Docker Hub with version tags
+4. **Deployment**: Deploys the application to Kubernetes using Helm charts
+
+### Workflow Trigger Events
+
+The pipeline is triggered by:
+- Push events to the `main` branch
+- Pull requests against the `main` branch
+- Manual workflow dispatches
+
+### Pipeline Stages in Detail
+
+#### 1. Testing Stage
+- Sets up a PostgreSQL service container for test databases
+- Configures Python environment with dependencies for each service
+- Creates test databases for each service
+- Runs test suites for all microservices
+
+```yaml
+test:
+  services:
+    postgres:
+      image: postgres:12
+      env:
+        POSTGRES_PASSWORD: postgres
+        POSTGRES_USER: postgres
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v4
+    - name: Install dependencies and run tests
+      run: |
+        # Install requirements for all services
+        # Create test databases
+        # Run tests for each microservice
+```
+
+#### 2. Building and Publishing Stage
+- Uses Docker Buildx for efficient multi-platform image building
+- Logs in to Docker Hub using GitHub repository secrets
+- Builds Docker images for each microservice
+- Tags images with:
+  - Latest tag
+  - Date-based tag (YYYYMMDD-HHMM)
+  - Git commit SHA tag for traceability
+- Pushes images to Docker Hub registry
+
+```yaml
+build:
+  needs: test
+  steps:
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v2
+    - name: Login to DockerHub
+      uses: docker/login-action@v2
+    - name: Build and push microservice images
+      uses: docker/build-push-action@v4
+```
+
+#### 3. Deployment Stage
+- Sets up Helm and kubectl with specified versions
+- Configures Kubernetes credentials from GitHub secrets
+- Creates or verifies the existence of the designated namespace
+- Deploys the application using Helm charts with proper version tagging
+- Passes secrets and configuration values securely
+
+```yaml
+deploy:
+  needs: build
+  steps:
+    - name: Set up Helm and kubectl
+      # Setup tools
+    - name: Configure Kubernetes credentials
+      # Configure access to cluster
+    - name: Deploy with Helm
+      run: |
+        helm upgrade --install meeting-room-system ./helm \
+          --namespace ${{ env.K8S_NAMESPACE }} \
+          --set imageTag=${{ env.SHA_TAG }} \
+          # Additional configuration values
+```
+
+### Required GitHub Secrets
+
+To enable the CI/CD pipeline, the following secrets must be configured in your GitHub repository:
+
+| Secret Name | Description |
+|-------------|-------------|
+| `DOCKER_HUB_USERNAME` | Docker Hub username for pushing images |
+| `DOCKER_HUB_TOKEN` | Docker Hub access token for authentication |
+| `KUBECONFIG` | Base64-encoded Kubernetes configuration file |
+| `GOOGLE_CLIENT_ID` | Google OAuth Client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth Client Secret |
+| `JWT_SECRET_KEY` | Secret key for JWT token generation |
+
+### Helm Chart Architecture
+
+Our Helm deployment uses a structured approach with:
+
+- A main chart (`meeting-room-system`) that defines the application
+- Templated Kubernetes manifests for all components
+- Parameterized values for flexible deployment to different environments
+- Proper secret management for sensitive information
+
+#### Helm Chart Structure
+
+```
+helm/
+├── Chart.yaml             # Chart metadata
+├── values.yaml            # Default configuration values
+└── templates/             # Kubernetes manifest templates
+    ├── namespace.yaml
+    ├── database/          # Database-related resources
+    ├── kafka/             # Kafka and Zookeeper resources
+    ├── microservices/     # Application microservices
+    └── nginx/             # NGINX reverse proxy configuration
+```
+
+#### Deployment Environments
+
+The pipeline can target different environments by modifying the Helm release name or namespace:
+
+- **Development**: Deploys to development namespace with debugging enabled
+- **Staging**: Deploys to staging with production-like configuration
+- **Production**: Deploys to production with optimized settings and resource limits
+
+### Setting Up Your Own CI/CD Pipeline
+
+1. **Fork the repository** to your GitHub account
+2. **Configure the required secrets** in your repository settings
+3. **Update the values.yaml** file with your specific configuration
+4. **Push to main branch** or create a pull request to trigger the pipeline
+
+### Monitoring CI/CD Runs
+
+- View pipeline runs in the "Actions" tab of your GitHub repository
+- Each run provides detailed logs and status of each stage
+- Failed stages will provide error messages to help troubleshooting
 
 ## Prerequisites
 
@@ -245,4 +394,3 @@ curl -X POST http://localhost:5002/reservations \
 ## License
 
 [MIT License](LICENSE)
-```
