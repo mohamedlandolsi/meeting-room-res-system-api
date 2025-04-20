@@ -25,7 +25,7 @@ This project features a comprehensive CI/CD pipeline using GitHub Actions and He
 
 ### GitHub Actions Workflow Overview
 
-Our CI/CD pipeline automates the following stages:
+Our CI/CD pipeline (implemented in `.github/workflows/cicd.yml`) automates the following stages:
 
 1. **Testing**: Runs automated tests for all microservices
 2. **Building**: Builds Docker images for each microservice
@@ -37,7 +37,20 @@ Our CI/CD pipeline automates the following stages:
 The pipeline is triggered by:
 - Push events to the `main` branch
 - Pull requests against the `main` branch
-- Manual workflow dispatches
+- Manual workflow dispatches with environment selection:
+  ```yaml
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'development'
+        type: choice
+        options:
+          - development
+          - staging
+          - production
+  ```
 
 ### Pipeline Stages in Detail
 
@@ -93,6 +106,7 @@ build:
 - Creates or verifies the existence of the designated namespace
 - Deploys the application using Helm charts with proper version tagging
 - Passes secrets and configuration values securely
+- Verifies deployment with rollout status checks for each service
 
 ```yaml
 deploy:
@@ -125,12 +139,24 @@ To enable the CI/CD pipeline, the following secrets must be configured in your G
 
 ### Helm Chart Architecture
 
-Our Helm deployment uses a structured approach with:
+The Helm chart structure (in the `helm/` directory) provides a complete deployment solution:
 
-- A main chart (`meeting-room-system`) that defines the application
-- Templated Kubernetes manifests for all components
-- Parameterized values for flexible deployment to different environments
-- Proper secret management for sensitive information
+- `Chart.yaml`: Defines chart metadata, version, and maintainer information
+- `values.yaml`: Contains configurable parameters for all components with sensible defaults
+- Template files organized by component:
+  - Database (PostgreSQL) with persistent storage
+  - Messaging (Kafka/Zookeeper) for event handling
+  - Microservices with proper environment configuration
+  - Reverse proxy (NGINX) for unified API access
+
+#### Key Features of the Helm Chart
+
+- **Environment-aware configuration**: Different settings for development, staging, and production
+- **Resource management**: Appropriate CPU and memory limits based on environment
+- **Secret handling**: Secure storage of sensitive information
+- **Service discovery**: Internal networking for microservice communication
+- **Initialization jobs**: Automated database and Kafka topic setup
+- **Health checks**: Readiness and liveness probes for all services
 
 #### Helm Chart Structure
 
@@ -139,20 +165,20 @@ helm/
 ├── Chart.yaml             # Chart metadata
 ├── values.yaml            # Default configuration values
 └── templates/             # Kubernetes manifest templates
-    ├── namespace.yaml
+    ├── namespace.yaml     # Namespace definition
     ├── database/          # Database-related resources
+    │   └── postgres.yaml  
     ├── kafka/             # Kafka and Zookeeper resources
+    │   └── kafka.yaml     
     ├── microservices/     # Application microservices
+    │   ├── google-oauth-secret.yaml
+    │   ├── secrets.yaml
+    │   ├── user-service.yaml
+    │   ├── room-service.yaml
+    │   └── reservation-service.yaml
     └── nginx/             # NGINX reverse proxy configuration
+        └── nginx.yaml
 ```
-
-#### Deployment Environments
-
-The pipeline can target different environments by modifying the Helm release name or namespace:
-
-- **Development**: Deploys to development namespace with debugging enabled
-- **Staging**: Deploys to staging with production-like configuration
-- **Production**: Deploys to production with optimized settings and resource limits
 
 ### Setting Up Your Own CI/CD Pipeline
 
@@ -160,6 +186,7 @@ The pipeline can target different environments by modifying the Helm release nam
 2. **Configure the required secrets** in your repository settings
 3. **Update the values.yaml** file with your specific configuration
 4. **Push to main branch** or create a pull request to trigger the pipeline
+5. **Monitor the workflow** in the GitHub Actions tab
 
 ### Monitoring CI/CD Runs
 

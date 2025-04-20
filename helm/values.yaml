@@ -1,0 +1,84 @@
+# Default values for meeting-room-system Helm chart
+# This is a YAML-formatted file.
+
+# Global configuration
+global:
+  environment: development # Options: development, staging, production
+
+# Image configuration
+imageRegistry: docker.io
+imageRepository: yourusername # Will be overridden by workflow
+imageTag: latest
+imagePullPolicy: IfNotPresent
+
+# Secrets and configuration
+jwtSecret: "replace-with-secure-jwt-secret" # Overridden by workflow
+googleClientId: "replace-with-google-client-id" # Overridden by workflow
+googleClientSecret: "replace-with-google-client-secret" # Overridden by workflow
+adminEmails: "admin@example.com"
+
+# Database configuration
+postgres:
+  enabled: true
+  persistence: true
+  storageSize: 1Gi
+  user: postgres
+  password: postgres
+  databases:
+    - user_db
+    - room_db
+    - reservation_db
+
+# Kafka configuration
+kafka:
+  enabled: true
+  replicaCount: 1
+  zookeeper:
+    enabled: true
+    replicaCount: 1
+
+# Microservices configuration
+services:
+  user:
+    name: user-service
+    replicaCount: 2
+    port: 5000
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  
+  room:
+    name: room-service
+    replicaCount: 2
+    port: 5001
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  
+  reservation:
+    name: reservation-service
+    replicaCount: 2
+    port: 5002
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+
+# NGINX configuration
+nginx:
+  enabled: true
+  replicaCount: 1
+  service:
+    type: LoadBalancer
+    port: 80

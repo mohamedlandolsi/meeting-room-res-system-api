@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reservation-service
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: reservation-service
+spec:
+  replicas: {{ .Values.services.reservation.replicaCount }}
+  selector:
+    matchLabels:
+      app: reservation-service
+  template:
+    metadata:
+      labels:
+        app: reservation-service
+    spec:
+      containers:
+      - name: reservation-service
+        image: {{ .Values.imageRegistry }}/{{ .Values.imageRepository }}/reservation-service:{{ .Values.imageTag }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        ports:
+        - containerPort: {{ .Values.services.reservation.port }}
+        env:
+        - name: DATABASE_URL
+          value: postgresql://{{ .Values.postgres.user }}:{{ .Values.postgres.password }}@postgres:5432/reservation_db
+        - name: JWT_SECRET_KEY
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: JWT_SECRET_KEY
+        - name: KAFKA_BROKER_URL
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: KAFKA_BROKER_URL
+        - name: KAFKA_CONSUMER_GROUP
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: KAFKA_CONSUMER_GROUP
+        - name: DEBUG
+          valueFrom:
+            configMapKeyRef:
+              name: app-config
+              key: DEBUG
+        - name: PORT
+          value: "{{ .Values.services.reservation.port }}"
+        readinessProbe:
+          httpGet:
+            path: /reservations/
+            port: {{ .Values.services.reservation.port }}
+          initialDelaySeconds: 15
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /reservations/
+            port: {{ .Values.services.reservation.port }}
+          initialDelaySeconds: 30
+          periodSeconds: 20
+        resources:
+{{ toYaml .Values.services.reservation.resources | indent 10 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: reservation-service
+  namespace: {{ .Release.Namespace }}
+spec:
+  selector:
+    app: reservation-service
+  ports:
+  - port: {{ .Values.services.reservation.port }}
+    targetPort: {{ .Values.services.reservation.port }}
