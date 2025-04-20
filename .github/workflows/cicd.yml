@@ -168,6 +168,13 @@ jobs:
         run: |
           kubectl get namespace ${{ env.K8S_NAMESPACE }} || kubectl create namespace ${{ env.K8S_NAMESPACE }}
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
       - name: Deploy with Helm
         run: |
           helm upgrade --install meeting-room-system ./helm \
@@ -176,10 +183,35 @@ jobs:
             --set jwtSecret="${{ secrets.JWT_SECRET_KEY }}" \
             --set googleClientId="${{ secrets.GOOGLE_CLIENT_ID }}" \
             --set googleClientSecret="${{ secrets.GOOGLE_CLIENT_SECRET }}" \
-            --set environment="${{ github.event.inputs.environment || 'development' }}"
+            --set environment="${{ github.event.inputs.environment || 'development' }}" \
+            --set monitoring.enabled=true \
+            --set monitoring.cloudwatch.enabled=true \
+            --set monitoring.cloudwatch.region="${{ secrets.AWS_REGION }}" \
+            --set monitoring.loki.enabled=true \
+            --set monitoring.promtail.enabled=true \
+            --set monitoring.grafana.enabled=true \
+            --set monitoring.grafana.adminPassword="${{ secrets.GRAFANA_ADMIN_PASSWORD }}" \
+            --set adminEmails="${{ secrets.ADMIN_EMAILS }}"
 
       - name: Verify deployment
         run: |
           kubectl rollout status deployment/user-service -n ${{ env.K8S_NAMESPACE }}
           kubectl rollout status deployment/room-service -n ${{ env.K8S_NAMESPACE }}
           kubectl rollout status deployment/reservation-service -n ${{ env.K8S_NAMESPACE }}
+          # Verify monitoring components deployment
+          kubectl rollout status deployment/loki -n ${{ env.K8S_NAMESPACE }}
+          kubectl rollout status deployment/grafana -n ${{ env.K8S_NAMESPACE }}
+          kubectl rollout status daemonset/promtail -n ${{ env.K8S_NAMESPACE }}
+          kubectl rollout status daemonset/fluentd-cloudwatch -n ${{ env.K8S_NAMESPACE }}
+          
+      - name: Deploy CloudWatch alerts (CloudFormation)
+        if: github.event.inputs.environment == 'production' || github.event.inputs.environment == 'staging'
+        run: |
+          kubectl get configmap cloudwatch-alerts -n ${{ env.K8S_NAMESPACE }} -o jsonpath="{.data.cloudformation-alerts\.yaml}" > cloudwatch-alerts.yaml
+          aws cloudformation deploy \
+            --template-file cloudwatch-alerts.yaml \
+            --stack-name meeting-room-system-alerts-${{ github.event.inputs.environment || 'development' }} \
+            --capabilities CAPABILITY_IAM \
+            --parameter-overrides \
+              LogGroupName=${{ env.K8S_NAMESPACE }}-${{ github.event.inputs.environment || 'development' }} \
+              AdminEmail=${{ secrets.ADMIN_EMAILS }}

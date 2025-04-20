@@ -1,0 +1,122 @@
+{{- if and .Values.monitoring.enabled .Values.monitoring.cloudwatch.enabled }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudwatch-alerts
+  namespace: {{ .Release.Namespace }}
+data:
+  cloudformation-alerts.yaml: |
+    AWSTemplateFormatVersion: '2010-09-09'
+    Description: 'CloudWatch Alarms for Meeting Room Reservation System'
+    
+    Resources:
+      # High Error Rate Alarm
+      HighErrorRateAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+          AlarmName: MeetingRoomSystem-HighErrorRate
+          AlarmDescription: 'Alarm when the error rate is high across the services'
+          MetricName: ErrorCount
+          Namespace: AWS/Logs
+          Statistic: Sum
+          Period: 300
+          EvaluationPeriods: 1
+          Threshold: 5
+          ComparisonOperator: GreaterThanThreshold
+          Dimensions:
+            - Name: LogGroupName
+              Value: {{ .Values.monitoring.cloudwatch.logGroupName }}
+          TreatMissingData: notBreaching
+          
+      # Database Error Alarm
+      DatabaseErrorAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+          AlarmName: MeetingRoomSystem-DatabaseErrors
+          AlarmDescription: 'Alarm when database errors are detected in the logs'
+          MetricName: DatabaseErrorCount
+          Namespace: AWS/Logs
+          Statistic: Sum
+          Period: 300
+          EvaluationPeriods: 1
+          Threshold: 1
+          ComparisonOperator: GreaterThanThreshold
+          Dimensions:
+            - Name: LogGroupName
+              Value: {{ .Values.monitoring.cloudwatch.logGroupName }}
+          TreatMissingData: notBreaching
+          
+      # Service Availability Alarm
+      ServiceAvailabilityAlarm:
+        Type: 'AWS::CloudWatch::Alarm'
+        Properties:
+          AlarmName: MeetingRoomSystem-ServiceAvailability
+          AlarmDescription: 'Alarm when any service becomes unavailable'
+          MetricName: ServiceAvailability
+          Namespace: AWS/Logs
+          Statistic: Average
+          Period: 60
+          EvaluationPeriods: 3
+          Threshold: 1
+          ComparisonOperator: LessThanThreshold
+          Dimensions:
+            - Name: LogGroupName
+              Value: {{ .Values.monitoring.cloudwatch.logGroupName }}
+          TreatMissingData: breaching
+          
+      # Metrics Filter for Error Logs
+      ErrorLogsMetricFilter:
+        Type: 'AWS::Logs::MetricFilter'
+        Properties:
+          LogGroupName: {{ .Values.monitoring.cloudwatch.logGroupName }}
+          FilterPattern: '{ $.log = "*ERROR*" || $.log = "*Error*" || $.log = "*error*" }'
+          MetricTransformations:
+            - MetricName: ErrorCount
+              MetricNamespace: AWS/Logs
+              MetricValue: '1'
+              
+      # Metrics Filter for Database Errors
+      DatabaseErrorMetricFilter:
+        Type: 'AWS::Logs::MetricFilter'
+        Properties:
+          LogGroupName: {{ .Values.monitoring.cloudwatch.logGroupName }}
+          FilterPattern: '{ $.log = "*database error*" || $.log = "*Database Error*" || $.log = "*SQL Error*" || $.log = "*Connection refused*" || $.log = "*timeout*" }'
+          MetricTransformations:
+            - MetricName: DatabaseErrorCount
+              MetricNamespace: AWS/Logs
+              MetricValue: '1'
+              
+      # SNS Topic for Alarms
+      AlertSNSTopic:
+        Type: 'AWS::SNS::Topic'
+        Properties:
+          DisplayName: MeetingRoomSystem-Alerts
+          TopicName: MeetingRoomSystem-Alerts
+          
+      # SNS Subscription for Email Alerts
+      AlertEmailSubscription:
+        Type: 'AWS::SNS::Subscription'
+        Properties:
+          TopicArn: !Ref AlertSNSTopic
+          Protocol: email
+          Endpoint: {{ .Values.adminEmails }}
+          
+      # Alarm Actions
+      HighErrorRateAlarmAction:
+        Type: 'AWS::CloudWatch::AlarmAction'
+        Properties:
+          AlarmName: !Ref HighErrorRateAlarm
+          ActionArn: !Ref AlertSNSTopic
+          
+      DatabaseErrorAlarmAction:
+        Type: 'AWS::CloudWatch::AlarmAction'
+        Properties:
+          AlarmName: !Ref DatabaseErrorAlarm
+          ActionArn: !Ref AlertSNSTopic
+          
+      ServiceAvailabilityAlarmAction:
+        Type: 'AWS::CloudWatch::AlarmAction'
+        Properties:
+          AlarmName: !Ref ServiceAvailabilityAlarm
+          ActionArn: !Ref AlertSNSTopic
+{{- end }}

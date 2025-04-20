@@ -180,19 +180,106 @@ helm/
         └── nginx.yaml
 ```
 
-### Setting Up Your Own CI/CD Pipeline
+## Advanced Log Management and Monitoring
 
-1. **Fork the repository** to your GitHub account
-2. **Configure the required secrets** in your repository settings
-3. **Update the values.yaml** file with your specific configuration
-4. **Push to main branch** or create a pull request to trigger the pipeline
-5. **Monitor the workflow** in the GitHub Actions tab
+The system features a comprehensive logging and monitoring setup that provides insights into application performance, error detection, and alerting capabilities.
 
-### Monitoring CI/CD Runs
+### Logging Architecture
 
-- View pipeline runs in the "Actions" tab of your GitHub repository
-- Each run provides detailed logs and status of each stage
-- Failed stages will provide error messages to help troubleshooting
+The logging architecture uses a multi-layered approach:
+
+1. **Application-level Structured Logging**: All microservices output JSON-formatted logs with consistent fields
+2. **Log Collection with Promtail**: Deployed as a DaemonSet to collect logs from all containers
+3. **Log Storage with Loki**: Efficient log storage optimized for Kubernetes environments
+4. **Log Aggregation with CloudWatch**: AWS CloudWatch provides centralized log storage with search capabilities
+5. **Visualization with Grafana**: Real-time dashboards displaying application metrics and logs
+
+### Monitoring Components
+
+- **Loki**: High-performance log aggregation system designed for Kubernetes
+- **Promtail**: Agent that ships container logs to Loki
+- **Grafana**: Visualization platform for metrics and logs with alerting capabilities
+- **AWS CloudWatch**: Centralized log management and metrics platform with alerting
+
+### Alerting System
+
+The system implements a dual-layer alerting system:
+
+1. **Grafana Alerts**: Based on log patterns and thresholds
+   - High error rate detection across services
+   - Database error monitoring
+   - Service availability monitoring
+   
+2. **CloudWatch Alarms**: AWS-native alerting system
+   - Metric-based alerting for critical errors
+   - SNS integration for email notifications
+   - Cross-service correlation of issues
+
+### Monitoring Configuration
+
+The monitoring stack is fully deployed and configured as part of the Helm chart installation:
+
+```yaml
+# Monitoring configuration in values.yaml
+monitoring:
+  enabled: true
+  
+  # Loki for log storage
+  loki:
+    enabled: true
+    persistence:
+      enabled: true
+      storageSize: 10Gi
+  
+  # Promtail for log collection
+  promtail:
+    enabled: true
+    
+  # Grafana for visualization
+  grafana:
+    enabled: true
+    adminPassword: "admin"  # Change for production!
+    persistence:
+      enabled: true
+    dashboards:
+      enabled: true
+    alerting:
+      enabled: true
+      
+  # AWS CloudWatch integration
+  cloudwatch:
+    enabled: true
+    region: "us-east-1"
+    logGroupName: "meeting-room-reservation-system"
+```
+
+### Pre-configured Dashboards
+
+The system comes with pre-configured Grafana dashboards:
+
+1. **Kubernetes Logs**: Overview of all logs within the Kubernetes cluster
+2. **Service Logs**: Dedicated dashboard for application services with filtering
+3. **Error Tracking**: Dashboard focused on error detection and troubleshooting
+
+### Setting Up Monitoring
+
+The monitoring stack is automatically deployed as part of the Helm chart installation. Additional AWS configuration is required for CloudWatch integration:
+
+1. Create an IAM role with permissions for CloudWatch Logs
+2. Configure AWS credentials in GitHub Secrets:
+   - `AWS_ACCESS_KEY_ID`
+   - `AWS_SECRET_ACCESS_KEY`
+   - `AWS_REGION`
+3. Add Grafana admin password to GitHub Secrets:
+   - `GRAFANA_ADMIN_PASSWORD`
+
+### Accessing Monitoring Tools
+
+After deployment:
+
+- **Grafana**: Access via `http://[CLUSTER-IP]:3000` or through Ingress if configured
+- **CloudWatch Logs**: Access through AWS Console or AWS CLI
+- **Alerts**: Configured to send notifications to the email addresses specified in `adminEmails`
 
 ## Prerequisites
 

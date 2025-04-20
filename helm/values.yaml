@@ -82,3 +82,74 @@ nginx:
   service:
     type: LoadBalancer
     port: 80
+
+# Monitoring configuration
+monitoring:
+  enabled: true
+  
+  # Loki configuration
+  loki:
+    enabled: true
+    persistence:
+      enabled: true
+      storageSize: 10Gi
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+  
+  # Promtail configuration (log collector for Loki)
+  promtail:
+    enabled: true
+    resources:
+      limits:
+        cpu: 100m
+        memory: 128Mi
+      requests:
+        cpu: 50m
+        memory: 64Mi
+        
+  # Grafana configuration
+  grafana:
+    enabled: true
+    adminPassword: "admin" # Should be overridden in production
+    persistence:
+      enabled: true
+      storageSize: 2Gi
+    resources:
+      limits:
+        cpu: 200m
+        memory: 256Mi
+      requests:
+        cpu: 100m
+        memory: 128Mi
+    dashboards:
+      enabled: true
+    alerting:
+      enabled: true
+      alertmanager:
+        enabled: true
+    service:
+      type: ClusterIP
+      port: 3000
+    ingress:
+      enabled: false # Set to true if you want to access Grafana via Ingress
+
+  # AWS CloudWatch configuration
+  cloudwatch:
+    enabled: true
+    region: "us-east-1" # Replace with your AWS region
+    logGroupName: "meeting-room-reservation-system"
+    logStreamPrefix: "kubernetes"
+    fluentd:
+      enabled: true
+      resources:
+        limits:
+          cpu: 200m
+          memory: 256Mi
+        requests:
+          cpu: 100m
+          memory: 128Mi
