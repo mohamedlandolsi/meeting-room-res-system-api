@@ -19,6 +19,151 @@ This system is composed of three microservices:
 - **Containerization**: Docker
 - **Orchestration**: Kubernetes
 
+## Code Quality with SonarQube
+
+This project is integrated with SonarQube for continuous code quality monitoring, static code analysis, and technical debt management.
+
+### SonarQube Integration Features
+
+- **Automated Code Analysis**: SonarQube analyzes code quality on every pull request and commit to the main branch
+- **Code Coverage Tracking**: Tracks test coverage across all three microservices
+- **Quality Gates**: Ensures code meets quality thresholds before merging
+- **Security Vulnerability Detection**: Identifies potential security issues in the codebase
+- **Technical Debt Management**: Tracks and helps reduce technical debt
+
+### SonarQube Infrastructure
+
+The project uses the following SonarQube components:
+
+- **SonarQube Server**: LTS Community Edition running in Docker
+- **PostgreSQL Database**: Dedicated database for SonarQube data persistence
+- **Elasticsearch**: Handles search indexing for SonarQube (embedded)
+- **Sonar Scanner CLI**: Containerized scanner for code analysis
+
+#### System Requirements
+
+For running SonarQube locally:
+
+- Docker and Docker Compose
+- At least 4GB of RAM allocated to Docker
+- At least 2GB of available disk space
+- Elasticsearch requirements:
+  - `vm.max_map_count` set to at least 262144
+  - Adequate file descriptors (65536 recommended)
+
+### SonarQube Setup
+
+#### Local Development Setup
+
+A SonarQube server is available locally for development:
+
+```bash
+# Start SonarQube with Docker Compose
+cd sonarqube
+docker-compose up -d
+```
+
+Access the SonarQube dashboard at http://localhost:9000 (default credentials: admin/admin)
+
+#### Running Code Analysis Locally
+
+The project includes a comprehensive script for running SonarQube analysis:
+
+```bash
+# Run analysis without tests
+./run-sonar-scan.sh
+
+# Run tests with coverage and analyze
+./run-sonar-scan.sh --with-tests
+
+# Run with a specific token
+SONAR_TOKEN=your_token ./run-sonar-scan.sh
+```
+
+The script automatically:
+- Starts SonarQube if it's not running
+- Checks and fixes system requirements (like vm.max_map_count)
+- Executes tests with coverage when the `--with-tests` flag is used
+- Merges coverage reports from all microservices
+- Runs the SonarQube scanner against the codebase
+- Provides helpful troubleshooting information
+
+### Project Quality Configuration
+
+The project's SonarQube analysis is configured in `sonar-project.properties`:
+
+```properties
+sonar.projectKey=meeting-room-reservation-system
+sonar.projectName=Meeting Room Reservation System
+sonar.projectVersion=1.0
+
+# Source information
+sonar.sources=user-service,room-service,reservation-service
+sonar.sourceEncoding=UTF-8
+
+# Python specific settings
+sonar.python.coverage.reportPaths=coverage.xml
+sonar.python.xunit.reportPath=test-results.xml
+
+# Exclude virtual environment and other non-source code
+sonar.exclusions=venv/**,**/__pycache__/**,**/tests/**,**/test_*.py
+```
+
+### CI/CD Integration
+
+SonarQube is integrated into the CI/CD pipeline with these features:
+
+- Runs after tests but before building Docker images
+- Publishes analysis results to SonarCloud
+- Enforces quality gates before deployment
+- Generates reports accessible from GitHub PR checks
+
+#### Required GitHub Secrets for SonarQube
+
+| Secret Name | Description |
+|-------------|-------------|
+| `SONAR_TOKEN` | SonarCloud authentication token |
+| `SONAR_ORGANIZATION` | SonarCloud organization key |
+
+### Quality Metrics Monitored
+
+- **Code Duplication**: Identifies duplicated code across microservices
+- **Code Coverage**: Ensures adequate test coverage
+- **Code Smells**: Identifies design issues that might lead to bugs or maintenance problems
+- **Maintainability**: Tracks code complexity and maintainability index
+- **Security Hotspots**: Flags potentially insecure code patterns
+- **Reliability**: Identifies bugs and reliability issues
+
+### Customized Quality Profiles
+
+The project uses customized quality profiles for Python with:
+- Increased severity for security issues
+- Specific rules for API design consistency
+- Custom rules for Python best practices
+
+### Troubleshooting SonarQube
+
+#### Common Issues and Solutions
+
+1. **SonarQube won't start**
+   - Check Elasticsearch requirements: `sysctl vm.max_map_count`
+   - Increase if needed: `sudo sysctl -w vm.max_map_count=262144`
+   - Ensure Docker has enough memory allocated
+
+2. **Authentication issues**
+   - Default credentials are admin/admin for first login
+   - After first login, generate a token for scanner use
+   - Use the token with: `SONAR_TOKEN=your_token ./run-sonar-scan.sh`
+
+3. **Analysis failures**
+   - Check scan logs for specific error messages
+   - Verify Python dependencies are installed
+   - Ensure proper project structure is maintained
+
+4. **Docker permission issues**
+   - Run Docker commands with sudo if needed
+   - Add your user to the Docker group: `sudo usermod -aG docker $USER`
+
 ## CI/CD Pipeline Automation
 
 This project features a comprehensive CI/CD pipeline using GitHub Actions and Helm for automated testing, building, and deployment to Kubernetes environments.

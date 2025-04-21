@@ -43,6 +43,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Shallow clones should be disabled for better SonarQube analysis
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -64,24 +66,67 @@ jobs:
           PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE room_db_test;"
           PGPASSWORD=postgres psql -h localhost -U postgres -c "CREATE DATABASE reservation_db_test;"
 
-      - name: Run user-service tests
+      - name: Run user-service tests with coverage
         working-directory: ./user-service
         run: |
-          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/user_db_test JWT_SECRET_KEY=test-key pytest tests/ -v
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/user_db_test JWT_SECRET_KEY=test-key pytest tests/ -v --cov=. --cov-report=xml:../user-service-coverage.xml
 
-      - name: Run room-service tests
+      - name: Run room-service tests with coverage
         working-directory: ./room-service
         run: |
-          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/room_db_test JWT_SECRET_KEY=test-key pytest tests/ -v
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/room_db_test JWT_SECRET_KEY=test-key pytest tests/ -v --cov=. --cov-report=xml:../room-service-coverage.xml
 
-      - name: Run reservation-service tests
+      - name: Run reservation-service tests with coverage
         working-directory: ./reservation-service
         run: |
-          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/reservation_db_test JWT_SECRET_KEY=test-key pytest tests/ -v
+          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/reservation_db_test JWT_SECRET_KEY=test-key pytest tests/ -v --cov=. --cov-report=xml:../reservation-service-coverage.xml
+
+      - name: Merge coverage reports
+        run: |
+          pip install coverage
+          coverage combine user-service-coverage.xml room-service-coverage.xml reservation-service-coverage.xml || true
+          coverage xml -o coverage.xml || true
+          
+      - name: Upload coverage reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-reports
+          path: |
+            coverage.xml
+            *-coverage.xml
+          retention-days: 1
+
+  sonarqube:
+    name: SonarQube Analysis
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Download coverage reports
+        uses: actions/download-artifact@v3
+        with:
+          name: coverage-reports
+
+      - name: SonarQube Scan
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        with:
+          args: >
+            -Dsonar.projectKey=meeting-room-reservation-system
+            -Dsonar.organization=${{ secrets.SONAR_ORGANIZATION }}
+            -Dsonar.sources=user-service,room-service,reservation-service
+            -Dsonar.python.coverage.reportPaths=coverage.xml
+            -Dsonar.exclusions=venv/**,**/__pycache__/**,**/tests/**,**/test_*.py
 
   build:
     name: Build and Push Images
-    needs: test
+    needs: [test, sonarqube]
     runs-on: ubuntu-latest
     outputs:
       sha_tag: ${{ steps.set-tags.outputs.sha_tag }}
