@@ -426,6 +426,122 @@ After deployment:
 - **CloudWatch Logs**: Access through AWS Console or AWS CLI
 - **Alerts**: Configured to send notifications to the email addresses specified in `adminEmails`
 
+## Automated Database Backup
+
+The system includes an automated database backup solution that saves PostgreSQL databases and Kafka configuration to both local storage and AWS S3 for secure off-site storage.
+
+### Backup Features
+
+- **Comprehensive Backups**: Backs up all three PostgreSQL databases (`user_db`, `room_db`, and `reservation_db`)
+- **Kafka Configuration Backup**: Captures Kafka topic configurations and settings
+- **AWS S3 Integration**: Automatic upload to Amazon S3 with configurable retention policies
+- **Scheduled Execution**: Configured via cron for automated periodic backups
+- **Retention Policies**: Customizable retention periods for both local and cloud storage
+- **Secure**: Uses AWS IAM authentication for S3 access
+- **Self-healing**: Automatically creates required directories and S3 buckets if missing
+
+### Setting Up Automated Backups
+
+#### 1. Configure AWS Credentials
+
+Edit the AWS configuration file:
+
+```bash
+# Update AWS credentials
+nano config/aws-config.sh
+```
+
+Update the following values:
+```bash
+export AWS_ACCESS_KEY_ID="YOUR_AWS_ACCESS_KEY"
+export AWS_SECRET_ACCESS_KEY="YOUR_AWS_SECRET_KEY"
+export AWS_DEFAULT_REGION="us-east-1"  # Your preferred region
+export S3_BUCKET_NAME="your-backup-bucket-name"
+```
+
+#### 2. Setup Automated Backups
+
+Run the setup script to configure automated backups via cron:
+
+```bash
+./setup_backup_cron.sh
+```
+
+The script will guide you through setting up a backup schedule (hourly, daily, weekly, or custom).
+
+#### 3. Verify AWS Configuration
+
+Test the AWS configuration by running:
+
+```bash
+./backup.sh --test-aws
+```
+
+#### 4. Run a Manual Backup
+
+To execute a manual backup:
+
+```bash
+./backup.sh
+```
+
+### Backup Directory Structure
+
+Backups are organized as follows:
+
+```
+backups/
+├── user_db_YYYYMMDD-HHMMSS.sql.gz
+├── room_db_YYYYMMDD-HHMMSS.sql.gz
+├── reservation_db_YYYYMMDD-HHMMSS.sql.gz
+└── kafka/
+    └── kafka-topics-YYYYMMDD-HHMMSS.json.gz
+```
+
+### AWS S3 Storage Structure
+
+Backups in S3 are organized by date:
+
+```
+s3://your-backup-bucket/
+└── database-backups/
+    └── YYYY-MM/
+        └── DD/
+            ├── user_db_YYYYMMDD-HHMMSS.sql.gz
+            ├── room_db_YYYYMMDD-HHMMSS.sql.gz
+            ├── reservation_db_YYYYMMDD-HHMMSS.sql.gz
+            └── kafka-topics-YYYYMMDD-HHMMSS.json.gz
+```
+
+### Restoring from Backup
+
+To restore a database from backup:
+
+```bash
+# For compressed PostgreSQL custom format backups
+gunzip -c backups/database_name_YYYYMMDD-HHMMSS.sql.gz | pg_restore -U postgres -d database_name
+```
+
+### Troubleshooting Backups
+
+#### AWS S3 Access Issues
+- Verify AWS credentials in `config/aws-config.sh`
+- Ensure the IAM user has the following permissions:
+  - `s3:PutObject`
+  - `s3:GetObject`
+  - `s3:ListBucket`
+  - `s3:CreateBucket` (if the bucket doesn't exist yet)
+
+#### Database Backup Failures
+- Check database connection parameters in the backup script
+- Verify PostgreSQL is running and accessible
+- Review logs in `/home/mohamed/meeting-room-res-system-api/logs/backup_YYYY-MM-DD.log`
+
+#### Cron Job Issues
+- Verify cron job exists: `crontab -l`
+- Check cron logs: `/home/mohamed/meeting-room-res-system-api/logs/cron_backup.log`
+- Ensure the backup script has execute permissions: `chmod +x backup.sh`
+
 ## Prerequisites
 
 - Python 3.8+
