@@ -41,13 +41,13 @@ services:
   user-service:
     build: ./user-service
     ports:
-      - "5000:5000"
+      - "5005:5000"  # Changed from 5000:5000 to avoid port conflict
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5433/user_db
-      - JWT_SECRET_KEY=your-secret-key-here
-      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
-      - GOOGLE_CLIENT_SECRET=${GOOGLE_CLIENT_SECRET}
-      - ADMIN_EMAILS=${ADMIN_EMAILS}
+      - JWT_SECRET_KEY=3d573d708c64c9b059c43d884a1878ff09edf0d5df89620e98419d435318ca463e616336f010f9ee6a2fe392ad66789ce84eaabf6551a09e5fd6c6126ca33ba99b4c504f321787cd59a9057ad26315c93b8384ad95cd42a8a317e0e11550d799a5ee5655262f212653892f496f3af885e75ceebce461c6922403f661bb219bd3a5c0b0c6266d35c0e2d5001ed04d8f0f0b6541eb22d6063c166548717bde73ebb016a194aa5ca14e58ae1b84b7af34646a653f43a5d2f7a53e453c05dbce2083b496d7b1b90d098f84c43b643d8d9160d5ef417c42f9aa9b429f3277d07a8a43395de228d848b268d167ae56cb1c4ccaee638ac34bbbbe2b39035de20bcf85dc
+      - GOOGLE_CLIENT_ID=374852139175-3mku2c01depioeq5pgp170up5f0sllg3.apps.googleusercontent.com
+      - GOOGLE_CLIENT_SECRET=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
+      - ADMIN_EMAILS=mohamedlandolsi30@gmail.com
       - DEBUG=True
       - PORT=5000
     depends_on:

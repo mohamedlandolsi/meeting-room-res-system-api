@@ -3,8 +3,10 @@
 
 set -e  # Exit on any error
 
-# Set the registry - use localhost:5000 for local testing or your Docker Hub username
-REGISTRY=${1:-localhost:5000}
+# Set the registry - use gcr.io/PROJECT_ID format for Google Container Registry
+# Default to mohamedlandolsi if no project ID is provided
+PROJECT_ID=${1:-mohamedlandolsi}
+REGISTRY="gcr.io/${PROJECT_ID}"
 
 # Service names and their respective directories
 SERVICES=("user-service" "room-service" "reservation-service")
@@ -27,14 +29,6 @@ done
 
 echo "All images built successfully!"
 
-# Uncomment to push images to registry
-# echo "Pushing images to registry..."
-# for SERVICE in "${SERVICES[@]}"; do
-#   echo "Pushing $SERVICE..."
-#   docker push $REGISTRY/$SERVICE:latest
-#   docker push $REGISTRY/$SERVICE:$(date +%Y%m%d-%H%M)
-# done
-# echo "All images pushed to registry!"
-
-echo "To push these images to your registry, uncomment the push commands in this script"
-echo "or run: docker push [image_name]"
+echo "To push these images to Google Container Registry, run:"
+echo "gcloud auth configure-docker"
+echo "docker push [image_name]"

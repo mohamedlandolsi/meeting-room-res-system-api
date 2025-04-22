@@ -14,7 +14,7 @@ This guide explains how to deploy the Meeting Room Reservation System to a Kuber
 
 ```bash
 # Build images using the script
-./build_images.sh yourusername # For Docker Hub
+./build_images.sh mohamedlandolsi # For Docker Hub
 # OR for local registry:
 ./build_images.sh localhost:5000 # For local registry
 
@@ -28,9 +28,9 @@ If you're using your own container registry, update the image paths in the Kuber
 
 ```bash
 # Using sed to update all YAML files
-sed -i 's|image: user-service:latest|image: yourusername/user-service:latest|g' kubernetes/microservices/user-service.yaml
-sed -i 's|image: room-service:latest|image: yourusername/room-service:latest|g' kubernetes/microservices/room-service.yaml
-sed -i 's|image: reservation-service:latest|image: yourusername/reservation-service:latest|g' kubernetes/microservices/reservation-service.yaml
+sed -i 's|image: user-service:latest|image: mohamedlandolsi/user-service:latest|g' kubernetes/microservices/user-service.yaml
+sed -i 's|image: room-service:latest|image: mohamedlandolsi/room-service:latest|g' kubernetes/microservices/room-service.yaml
+sed -i 's|image: reservation-service:latest|image: mohamedlandolsi/reservation-service:latest|g' kubernetes/microservices/reservation-service.yaml
 ```
 
 3. Update ConfigMap values in `kubernetes/microservices/config.yaml`:

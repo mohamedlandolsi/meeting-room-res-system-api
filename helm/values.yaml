@@ -6,16 +6,16 @@ global:
   environment: development # Options: development, staging, production
 
 # Image configuration
-imageRegistry: docker.io
-imageRepository: yourusername # Will be overridden by workflow
+imageRegistry: gcr.io
+imageRepository: mohamedlandolsi # Will be overridden by your GCP project ID
 imageTag: latest
 imagePullPolicy: IfNotPresent
 
 # Secrets and configuration
-jwtSecret: "replace-with-secure-jwt-secret" # Overridden by workflow
-googleClientId: "replace-with-google-client-id" # Overridden by workflow
-googleClientSecret: "replace-with-google-client-secret" # Overridden by workflow
-adminEmails: "admin@example.com"
+jwtSecret: "your-secret-key-here" # Overridden by deployment
+googleClientId: "374852139175-3mku2c01depioeq5pgp170up5f0sllg3.apps.googleusercontent.com" 
+googleClientSecret: "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"
+adminEmails: "mohamedlandolsi30@gmail.com"
 
 # Database configuration
 postgres:
